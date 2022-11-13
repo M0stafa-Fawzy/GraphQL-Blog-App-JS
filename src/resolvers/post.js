@@ -1,13 +1,21 @@
 const Post = {
-    auther(parent, args, { db }, info){
-        return db.users.find((user) => {
-            return user.id === parent.auther
+    auther: async (parent, args, { prisma }, info) => {
+        const auther  = await prisma.user.findUnique({
+            where: {
+                id: +parent.userId
+            }
         })
+        return auther
     },
-    comments(parent, args, { db }, info){
-        return db.comments.filter((comment) => {
-            return comment.post === parent.id
+
+    // error here need to be fixed
+    comments: async (parent, args, { prisma }, info) => {
+        const comments = await prisma.comment.findMany({
+            where: {
+                postId: +parent.id
+            }
         })
+        return comments
     }
 }
 

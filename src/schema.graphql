@@ -7,14 +7,17 @@ type Query {
 }
 
 type Mutation {
-    createUser(data: CreateUserInput!): User!
-    deleteUser(id: ID!): User!
-    updateUser(id: ID!, data: UpdateUserInput!): User!
+
+    signUp(data: UserInput!): UserReturnPayload!
+    login(email: String!, password: String!): UserReturnPayload!
+    getProfileData: User!
+    deleteUser: User!
+    updateUser(data: UpdateUserInput!): User!
     createPost(data: CreatePostInput!): Post!
     deletePost(id: ID!): Post!
     updatePost(id: ID!, data: UpdatePostInput!): Post!
     createComment(data: CreateCommentInput!): Comment!
-    updateComment(id: ID!, data: UpdateCommentInput!): Comment!
+    updateComment(id: ID!, text: String): Comment!
     deleteComment(id: ID!): Comment!
 
 }
@@ -24,21 +27,22 @@ type Subscription {
     post: PostSubscriptionPayload!
 }
 
-input CreateUserInput {
+input UserInput {
     name: String!
-    age: Int
+    email: String!
+    password: String!
 }
+
 
 input UpdateUserInput {
     name: String
-    age: Int
+    email: String
 }
 
 input CreatePostInput {
     title: String!
     body: String!
     published: Boolean!
-    auther: ID!
 }
 
 input UpdatePostInput {
@@ -49,20 +53,15 @@ input UpdatePostInput {
 
 input CreateCommentInput {
     text: String!
-    auther: ID!
     post: ID!
-}
-
-input UpdateCommentInput {
-    text: String
 }
 
 type User {
     id: ID!,
     name: String!,
-    age: Int,
-    posts: [Post!]!
-    comments: [Comment!]!
+    email: String!,
+    posts: [Post!],
+    comments: [Comment!]
 }
 
 type Post {
@@ -95,4 +94,9 @@ type PostSubscriptionPayload {
 type CommentSubscriptionPayload {
     mutation: Mutationenum!
     data: Comment!
+}
+
+type UserReturnPayload {
+    user: User!
+    token: String!
 }

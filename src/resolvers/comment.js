@@ -1,14 +1,23 @@
 const Comment = {
-    auther(parent, args, { db }, info){
-        return db.users.find((user) => {
-            return user.id === parent.auther
+
+    auther: async (parent, args, { prisma }, info) => {
+        const user = await prisma.user.findUnique({
+            where: {
+                id: +parent.userId
+            }
         })
+        return user
     },
-    post(parent, args, { db }, info){
-        return db.posts.find((post) => {
-            return post.id === parent.post
+
+    post: async (parent, args, { prisma }, info) => {
+        const post = await prisma.post.findUnique({
+            where: {
+                id: +parent.postId
+            }
         })
+        return post
     }
+    
 }
 
 export { Comment as default }

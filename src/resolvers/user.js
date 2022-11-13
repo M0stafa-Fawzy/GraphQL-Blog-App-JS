@@ -1,13 +1,19 @@
 const User = {
-    posts(parent, args, { db }, info){
-        return db.posts.filter((post) => {
-            return post.auther === parent.id
+    posts: async (parent, args, { prisma }, info) => {
+        const posts = await prisma.post.findMany({
+            where: {
+                user: +parent.user
+            }
         })
+        return posts
     },
-    comments(parent, args, { db }, info){
-        return db.comments.filter((comment) => {
-            return comment.auther === parent.id
+    comments: async (parent, args, { prisma }, info) => {
+        const comments = await prisma.comment.findMany({
+            where: {
+                user: +parent.user
+            }
         })
+        return comments
     }
 }
 

@@ -1,166 +1,202 @@
-import { v4 as uuidv4 } from 'uuid'
+import { hash, compare } from "bcryptjs"
+import auth from "../middlewares/auth"
 
 const Mutation = {
-    createUser(parent, args, { db }, info){
-        const user = {
-            id: uuidv4(),
-            ...args.data
-        }
+    signUp: async(parent, { data }, { prisma }, info) => {
+        let { name, email, password } = data
+        password = await hash(password, 10)
 
-        db.users.push(user)
+        const user = await prisma.user.create({
+            data: {
+                name,
+                email,
+                password
+            }
+        })
+
+        const token = auth.genToken(user.id)
+        return { user, token }
+    },
+
+    login: async(parent, { email, password }, { prisma }, info) => {
+        const user = await prisma.user.findUnique({
+            where: {
+                email
+            }
+        })
+        if(!user) throw new Error("user not found")
+
+        let compared = await compare(password, user.password)
+        if(!compared) throw new Error("wrong password")
+
+        const token = auth.genToken(user.id)
+        return { user, token }
+    },
+
+    getProfileData: async (parent, args, { prisma, authPayload }, info) => {
+        const user = await prisma.user.findUnique({
+            where: {
+                id: authPayload.id
+            }
+        })
+        if(!user) throw new Error("user not found")
         return user
     },
 
-    deleteUser(parent, args, { db }, info){
-        const index = db.users.findIndex((user) => user.id === args.id)
-        const deleted = db.users.splice(index, 1)
-
-        db.posts = db.posts.filter((post) => {
-            return post.auther != deleted[0].id
+    deleteUser: async (parent, args, { prisma, authPayload }, info) => {
+        const deleted = await prisma.user.delete({
+            where: {
+                id: +authPayload.id
+            }
         })
-
-        
-        db.comments = db.comments.filter((comment) => {
-            return comment.auther != deleted[0].id
-        })
-
-        return deleted[0]
+        return deleted
     },
-    updateUser(parent, args, { db }, info){
-        const user = db.users.find(user => user.id === args.id)
-        if(!user){
-            throw new Error("user not found")
-        }
 
-        if(typeof args.data.name === "string"){
-            user.name = args.data.name
-        }
-
-        if(typeof args.data.age !== "undefined"){
-            user.age = args.data.age
-        }
-
+    updateUser: async (parent, { data }, { prisma, authPayload }, info) => {
+        const user = prisma.user.update({
+            where: {
+                id: +authPayload.id
+            },
+            data
+        })
+        if(!user) throw new Error("user not found")
         return user
     },
-    createPost(parent, args, { db, pubsub }, info){
-        const { title, body, published, auther } = args.data
-        const post = { id: uuidv4(), title, body, published, auther }
-        // const post = { id: uuidv4(), title: args.title
-        //     , body: args.body, published: args.published, auther: args.auther }
-
-        db.posts.push(post)
-        pubsub.publish(`post`, { post: {
-            mutation: 'CREATED',
-            data: post
-            } 
-        })
-        return post
-
-    },
-    deletePost(parent, args, { db, pubsub }, info){
-        const index = db.posts.findIndex(post => post.id === args.id)
-        const [post] = db.posts.splice(index, 1)
-
-        db.comments = db.comments.filter(comment => comment.post !== args.id)
-
-        pubsub.publish('post', {
-            post: {
-                mutation: "DELETED",
-                data: post
+    
+    createPost: async (parent, { data }, { prisma, authPayload }, info) => {
+        const { title, body, published } = data
+        const post = await prisma.post.create({
+            data: {
+                title,
+                body,
+                published,
+                userId: authPayload.id
             }
         })
-
+        // pubsub.publish(`post`, { post: {
+        //     mutation: 'CREATED',
+        //     data: post
+        //     } 
+        // })
         return post
     },
-    updatePost(parent, args, { db, pubsub }, info){
-        const { id, data } = args
-        const post = db.posts.find(post => post.id === id)
-        const originalpost = { ...post }
-        if(!post){
-            throw new Error("post not found")
-        }
 
-        if(typeof data.title === "string"){
-            post.title = data.title
-        }
-
-        if(typeof data.body === "string"){
-            post.body = data.body
-        }
-
-        if(typeof data.published === "boolean"){
-            post.published = data.published
-
-            if(originalpost.published && !post.published){
-                pubsub.publish('post', {
-                    post: {
-                        mutation: "DELETED",
-                        data: originalpost
-                    }
-                })
-            }else if(!originalpost.published && post.published){
-                pubsub.publish('post', {
-                    post: {
-                        mutation: "CREATED",
-                        data: post
-                    }
-                })
+    deletePost: async (parent, { id }, { prisma, authPayload }, info) => {
+        let post = await prisma.post.findUnique({
+            where: {
+                id: +id
             }
-        }else if(post.published){
-            pubsub.publish('post', {
-                post: {
-                    mutation: "UPDATED",
-                    data: post
-                }
-            })
-        }
+        })
+ 
+        if(post.userId != authPayload.id) throw new Error("unauthorized action")
+
+        post = await prisma.post.delete({
+            where: {
+                id: +id
+            }
+        })
+        // await prisma.comments.deleteMany({
+        //     where: {
+        //         post: +id
+        //     }
+        // })
+
+        // pubsub.publish('post', {
+        //     post: {
+        //         mutation: "DELETED",
+        //         data: post
+        //     }
+        // })
 
         return post
     },
-    createComment(parent, args, { db, pubsub }, info){
-        // const { text, auther } = args
-        const comment = {
-            id: uuidv4(),
-            ...args.data
-        }
-        db.comments.push(comment)
 
-        pubsub.publish(`comment ${args.data.post}`, {
-            comment: {
-                mutation: "CREATED",
-                data: comment
+    updatePost: async (parent, { id, data }, { prisma, authPayload }, info) => {
+        let post = await prisma.post.findUnique({
+            where: {
+                id: +id
             }
         })
+        if(!post) throw new Error("post not found")
+        if(post.userId != authPayload.id) throw new Error("unauthorized action")
+
+        post = await prisma.post.update({
+            where: {
+                id: +id
+            },
+            data
+        })
+        return post
+    },
+
+    createComment: async (parent, { data }, { prisma, authPayload }, info) => {
+        const { text, post } = data
+        const { id } = authPayload
+
+        const postExisted = await prisma.post.findUnique({
+            where: {
+                id: +post
+            }
+        })
+        if(!postExisted) throw new Error("post not found!")
+
+        const comment = await prisma.comment.create({
+            data: {
+                text, 
+                userId: +id, 
+                postId: +post
+            }
+        })
+
+        // pubsub.publish(`comment ${args.data.post}`, {
+        //     comment: {
+        //         mutation: "CREATED",
+        //         data: comment
+        //     }
+        // })
         return comment
     },
-    updateComment(parent, args, { db, pubsub }, info){
-        const { id, data } = args
-        const comment = db.comments.find(comment => comment.id === id)
-        if(!comment){
-            throw new Error('comment not forund')
-        }
 
-        if(typeof data.text === "string"){
-            comment.text = data.text
-        }
+    updateComment: async (parent, { id, text }, { prisma, authPayload }, info) => {
+        let comment = await prisma.comment.findUnique({
+            where: {
+                id: +id
+            }
+        })
+        if(!comment) throw new Error("comment not found")
+        if(comment.userId != authPayload.id) throw new Error("unauthorized action")
 
-        pubsub.publish(`comment ${comment.post}`, {
-            comment: {
-                mutation: "UPDATED",
-                data: comment
+        comment = await prisma.comment.update({
+            where: {
+                id: +id
+            },
+            data: {
+                text
             }
         })
 
+        // pubsub.publish(`comment ${comment.post}`, {
+        //     comment: {
+        //         mutation: "UPDATED",
+        //         data: comment
+        //     }
+        // })
+
         return comment
     },
-    deleteComment(parent, args, { db, pubsub }, info){
-        const index = db.comments.findIndex(comment => comment.id === args.id)
-        const [comment] = db.comments.splice(index, 1)
+    
+    deleteComment: async (parent, { id }, { prisma, authPayload }, info) => {
+        let comment = await prisma.comment.findUnique({
+            where: {
+                id: +id
+            }
+        })
+        if(!comment) throw new Error("comment not found")
+        if(comment.userId != authPayload.id) throw new Error("unauthorized action")
 
-        pubsub.publish(`comment ${comment.post}`, {
-            comment: {
-                mutation: "DELETED",
-                data: comment
+        comment = await prisma.comment.delete({
+            where: {
+                id: +id
             }
         })
         return comment

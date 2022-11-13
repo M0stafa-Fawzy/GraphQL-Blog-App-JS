@@ -1,37 +1,20 @@
 const Query = {
-    comments(parent, args, { db }, info){
-        return db.comments
+
+    comments: async (parent, args, { prisma }, info) => {
+        const comments = await prisma.comment.findMany({})
+        return comments
     },
-    users(parent, args, { db }, info){
-        if(!args.query){
-            return db.users
-        }
-        return db.users.filter( (user) => {
-            return user.name.toLocaleLowerCase().includes(args.query.toLocaleLowerCase())
-        })
+
+    users: async (parent, args, { prisma }, info) => {
+        const users = await prisma.user.findMany({})
+        return users
     },
-    posts(parent, args, { db }, info){
-        if(!args.query){
-            return db.posts
-        }
-        return db.posts.filter( (post) => {
-            return post.published === true
-        })
-    },
-    me(){
-        return {
-            id: '12356265263',
-            name: 'Mo Salah'
-        }
-    },
-    post(){
-        return {
-            id: '12303201',
-            title: 'My First Post',
-            body: 'My First Post My First PostMy First Post',
-            published: true
-        }
+    
+    posts: async (parent, args, { prisma }, info) => {
+        const posts = await prisma.post.findMany({})
+        return posts
     }
+    
 }
 
 export { Query as default }
